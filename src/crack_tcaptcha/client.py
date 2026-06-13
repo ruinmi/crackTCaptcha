@@ -210,10 +210,10 @@ class TCaptchaClient:
         for elem in dyn.get("fg_elem_list", []):
             fg_list.append(
                 FgElem(
-                    elem_id=elem["elem_id"],
-                    sprite_pos=(elem["sprite_pos"]["x"], elem["sprite_pos"]["y"]),
-                    size_2d=(elem["size_2d"]["width"], elem["size_2d"]["height"]),
-                    init_pos=(elem["init_pos"]["x"], elem["init_pos"]["y"]),
+                    elem_id=random.randint(0, len(dyn.get("fg_elem_list", []))),
+                    sprite_pos=(elem["sprite_pos"][0], elem["sprite_pos"][1]),
+                    size_2d=(elem["size_2d"][0], elem["size_2d"][1]),
+                    init_pos=(elem["init_pos"][0], elem["init_pos"][1]),
                 )
             )
 

@@ -11,9 +11,9 @@ Public API::
 
 from __future__ import annotations
 
-from crack_tcaptcha.models import SolveResult
+from crack_tcaptcha.models import SolveResult, TCaptchaType
 
-__all__ = ["solve", "SolveResult"]
+__all__ = ["solve", "SolveResult", "TCaptchaType"]
 
 
 def _build_tdc_provider():

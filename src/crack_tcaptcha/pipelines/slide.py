@@ -38,6 +38,26 @@ class SliderSolver:
         gap_x, gap_y, ncc = self._ncc_match(bg_arr, piece_rgba, init_y, pw, ph)
         return gap_x, gap_y, ncc
 
+    @staticmethod
+    def select_piece(pieces: list[FgElem], bg_bytes: bytes) -> FgElem:
+        """Pick the movable slider piece, skipping full-width sprite strips."""
+        bg_img = Image.open(io.BytesIO(bg_bytes))
+        bg_w, bg_h = bg_img.size
+        candidates = []
+        for piece in pieces:
+            init_x, init_y = piece.init_pos
+            pw, ph = piece.size_2d
+            if pw >= bg_w or ph >= bg_h:
+                continue
+            if init_x < 0 or init_y < 0 or init_x >= bg_w or init_y >= bg_h:
+                continue
+            candidates.append(piece)
+
+        if not candidates:
+            raise SolveError("slide: no foreground element fits actual background image")
+
+        return max(candidates, key=lambda piece: piece.size_2d[0] * piece.size_2d[1])
+
     def _ncc_match(
         self,
         bg: np.ndarray,
@@ -60,14 +80,17 @@ class SliderSolver:
         bg_f = bg[:, :, :3].astype(np.float32)
         bh, bw = bg_f.shape[:2]
         x_max = bw - pw
-        y_min = max(0, init_y - self.y_search_range)
-        y_max = min(bh - ph, init_y + self.y_search_range)
+        if x_max < 0 or bh - ph < 0:
+            raise SolveError("slide: foreground element is larger than background image")
+        search_y = min(max(0, init_y), bh - ph)
+        y_min = max(0, search_y - self.y_search_range)
+        y_max = min(bh - ph, search_y + self.y_search_range)
 
         # --- Phase 1: coarse (stride=4 on init_y row) ---
         coarse_x = 0
         coarse_ncc = -2.0
         for x in range(0, x_max + 1, 4):
-            ncc = self._ncc_at(bg_f, mask, piece_centered, piece_norm, x, init_y, pw, ph)
+            ncc = self._ncc_at(bg_f, mask, piece_centered, piece_norm, x, search_y, pw, ph)
             if ncc > coarse_ncc:
                 coarse_ncc = ncc
                 coarse_x = x
@@ -75,7 +98,7 @@ class SliderSolver:
         # --- Phase 2: fine (±6 X, ±5 Y around coarse) ---
         fine_x_min = max(0, coarse_x - 6)
         fine_x_max = min(x_max, coarse_x + 7)
-        best_x, best_y = coarse_x, init_y
+        best_x, best_y = coarse_x, search_y
         best_ncc = coarse_ncc
         for y in range(y_min, y_max + 1):
             for x in range(fine_x_min, fine_x_max):
@@ -118,8 +141,8 @@ def solve_one_attempt(
     fg_url = client.get_fg_image_url(pre.bg_elem_cfg.img_url)
     fg_bytes = client.get_image(fg_url)
 
-    piece = pre.fg_elem_list[0]
     solver = SliderSolver()
+    piece = solver.select_piece(pre.fg_elem_list, bg_bytes)
     target_x, target_y, ncc = solver.solve(bg_bytes, fg_bytes, piece)
     log.info("slide NCC: target=(%d,%d) ncc=%.4f", target_x, target_y, ncc)
 
